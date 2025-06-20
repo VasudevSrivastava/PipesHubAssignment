@@ -5,6 +5,8 @@ import time
 from enum import Enum
 from collections import deque
 
+
+#dataclass decorator used instead of plain classes for more concise and clean code
 @dataclass
 class Logon:
     username : str
@@ -63,7 +65,7 @@ class OrderManagement:
 
         self.timestamp_logs = dict()
 
-    def check_schedule(self):
+    def check_schedule(self): #responsible for sending logon and logout requests
         while self.running:
             current_date = dt.datetime.now().date()
             current_time = dt.datetime.now().time()
@@ -79,7 +81,7 @@ class OrderManagement:
                 self.last_logout_date = current_date
             time.sleep(0.1)
     
-    def throttle_queue(self):
+    def throttle_queue(self): #handles the order queue and hashmap
         while self.running:
             current_time = int(time.time())
             with self.lock:
@@ -91,6 +93,7 @@ class OrderManagement:
                         top = self.request_queue.popleft()
                         if top.orderId in self.request_map:
                             self.send(top)
+                            #print(top)
                             self.timestamp_logs[top.orderId] = time.time()
                             del self.request_map[top.orderId]
                             self.current_request_count += 1
@@ -107,7 +110,7 @@ class OrderManagement:
         with self.lock:
             if request.request_type == RequestType.Modify:
                 queued_request = self.request_map.get(request.orderId)
-                if queued_request:
+                if queued_request: #ensures wrong requests don't cause errors
                     queued_request.qty = request.qty
                     queued_request.price = request.price
                 
@@ -120,6 +123,7 @@ class OrderManagement:
             else:
                 if self.current_request_count < self.limit_per_second:
                     self.send(request)
+                 #   print(request)
                     self.timestamp_logs[request.orderId] = time.time()
                     self.current_request_count += 1
                 else:
@@ -129,9 +133,9 @@ class OrderManagement:
     def on_data_response(self, response : OrderResponse) -> None:
         with self.lock:
             logged_entry = self.timestamp_logs.get(response.orderId)
-        if not logged_entry:
-            print("Order does not exist")
-            return
+            if not logged_entry:
+                print("Order does not exist")
+                return
         round_trip_latency = time.time() - logged_entry
         text = f"{response.responseType.name}, {response.orderId}, {round_trip_latency} \n"
         with open("response_logs.txt", 'a') as logfile:
